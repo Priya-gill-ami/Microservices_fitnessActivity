@@ -12,7 +12,7 @@ public class GeminiService {
     private final WebClient webClient;
 
     @Value("${gemini.api.url}")
-    private String genimiApiurl;
+    private String geminiApiUrl;
 
     @Value("${gemini.api.key}")
     private String geminiApiKey;
@@ -31,7 +31,7 @@ public class GeminiService {
 
         );
         String response = webClient.post()
-                .uri(genimiApiurl + geminiApiKey)
+                .uri(geminiApiUrl + geminiApiKey)
                 .header("Content-Type", "application/json")
                 .bodyValue(requestBody)
                 .retrieve()
