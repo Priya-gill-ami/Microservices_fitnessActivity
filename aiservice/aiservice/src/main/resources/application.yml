@@ -32,7 +32,8 @@ rabbitmq:
   routing:
     key: activity.tracking
 
-gemini:
+grok:
   api:
-    url: ${GEMINI_API_URL}
-    key: ${GEMINI_API_KEY}
+    url: ${GROK_API_URL}
+    key: ${GROK_API_KEY}
+
