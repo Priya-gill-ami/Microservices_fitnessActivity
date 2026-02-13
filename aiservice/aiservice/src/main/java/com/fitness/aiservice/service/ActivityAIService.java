@@ -10,13 +10,13 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class ActivityAIService {
 
-    private final GrokService grokService;
+    private final GroqService groqService;
 
     public String generateRecommendation(Activity activity) {
         String prompt = createPromptForActivity(activity);
-        String aiResponse = grokService.getAnswer(prompt);
+        String aiResponse = groqService.getAnswer(prompt);
 
-        log.info("RESPONSE FROM GROK (RAW): {}", aiResponse);
+        log.info("RESPONSE FROM GROQ (RAW): {}", aiResponse);
         return aiResponse;
     }
 

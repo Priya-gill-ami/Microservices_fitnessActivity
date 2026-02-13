@@ -32,8 +32,8 @@ rabbitmq:
   routing:
     key: activity.tracking
 
-grok:
+groq:
   api:
-    url: ${GROK_API_URL}
-    key: ${GROK_API_KEY}
+    url: ${GROQ_API_URL}
+    key: ${GROQ_API_KEY}
 
