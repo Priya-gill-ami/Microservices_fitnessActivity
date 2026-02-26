@@ -8,6 +8,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 @Service
 @Slf4j
 @RequiredArgsConstructor
@@ -40,16 +44,62 @@ public class ActivityAIService {
                     .replaceAll("```", "")
                     .trim();
 
-            log.info("PARSED RESPONSE FROM GROK (CLEAN JSON): {}", jsonContent);
+            log.info("PARSED RESPONSE FROM GROQ (CLEAN JSON): {}", jsonContent);
 
             // OPTIONAL: If you want to convert it into JsonNode again
-            JsonNode fitnessJson = mapper.readTree(jsonContent);
+            JsonNode analysisJson = mapper.readTree(jsonContent);
+            JsonNode analysisNode = analysisJson.path("analysis");
+            StringBuilder fullAnalysis = new StringBuilder();
+            addAnalysisSection(fullAnalysis, analysisNode, "overall", "Overall:");
+            addAnalysisSection(fullAnalysis, analysisNode, "pace", "Pace:");
+            addAnalysisSection(fullAnalysis, analysisNode, "heartRate", "Heart Rate:");
+            addAnalysisSection(fullAnalysis, analysisNode, "caloriesBurned", "Calories Burned:");
 
+            List<String> improvements = extractImprovents(analysisJson.path("improvements"));
+
+            List<String> suggestions = extractSuggestions(analysisJson.path("suggestions"));
             // Now you can extract:
             // fitnessJson.path("analysis").path("overall").asText();
 
         } catch (Exception e) {
-            log.error("Error parsing Grok response", e);
+            log.error("Error parsing GroQ response", e);
+        }
+    }
+
+    private List<String> extractSuggestions(JsonNode suggestionsNode) {
+        List<String> suggestions = new ArrayList<>();
+        if(suggestionsNode.isArray()){
+            suggestionsNode.forEach(suggestion -> {
+                String workout = suggestion.path("workout").asText();
+                String description = suggestion.path("description").asText();
+                suggestions.add(String.format("$s: %s", workout, description));
+            });
+            return suggestions.isEmpty()?
+                    Collections.singletonList("No specific suggestions provided"):
+                    suggestions;
+
+        }
+    }
+
+    private List<String> extractImprovents(JsonNode improvementsNode){
+        List<String> improvements = new ArrayList<>();
+        if(improvementsNode.isArray()){
+            improvementsNode.forEach(improvement -> {
+                String area = improvement.path("area").asText();
+                String detail = improvement.path("recommendation").asText();
+                improvements.add(String.format("$s: %s", area, detail));
+            });
+            return improvements.isEmpty()?
+                    Collections.singletonList("No specific improvements provided"):
+                    improvements;
+        }
+    }
+
+    private void addAnalysisSection(StringBuilder fullAnalysis, JsonNode analysisNode, String key, String prefix) {
+        if(!analysisNode.path(key).isMissingNode()){
+            fullAnalysis.append(prefix)
+                    .append(analysisNode.path(key).asText())
+                    .append("\n\n");
         }
     }
 
