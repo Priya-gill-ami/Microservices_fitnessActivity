@@ -8,9 +8,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.time.LocalDateTime;
+import java.util.*;
 
 @Service
 @Slf4j
@@ -18,85 +17,127 @@ import java.util.List;
 public class ActivityAIService {
 
     private final GroqService groqService;
+    private final ObjectMapper mapper = new ObjectMapper();
 
-    public String generateRecommendation(Activity activity) {
+    public Recommendation generateRecommendation(Activity activity) {
         String prompt = createPromptForActivity(activity);
         String aiResponse = groqService.getAnswer(prompt);
-        processAiResponse(activity, aiResponse);
-        log.info("RESPONSE FROM GROQ (RAW): {}", aiResponse);
-        return aiResponse;
+
+        log.info("CLEAN JSON FROM GROQ: {}", aiResponse);
+
+        return processAiResponse(activity, aiResponse);
     }
 
-    private void processAiResponse(Activity activity, String aiResponse) {
+    private Recommendation processAiResponse(Activity activity, String aiResponse) {
         try {
-            ObjectMapper mapper = new ObjectMapper();
-            JsonNode rootNode = mapper.readTree(aiResponse);
 
-            // Extract Grok message content
-            JsonNode contentNode = rootNode
+            JsonNode root = mapper.readTree(aiResponse);
+
+            // Extract the AI text response
+            String content = root
                     .path("choices")
                     .get(0)
                     .path("message")
-                    .path("content");
+                    .path("content")
+                    .asText();
 
-            String jsonContent = contentNode.asText()
-                    .replaceAll("```json\\n", "")
-                    .replaceAll("```", "")
-                    .trim();
+            log.info("RAW AI CONTENT: {}", content);
 
-            log.info("PARSED RESPONSE FROM GROQ (CLEAN JSON): {}", jsonContent);
-
-            // OPTIONAL: If you want to convert it into JsonNode again
-            JsonNode analysisJson = mapper.readTree(jsonContent);
+            // Now parse the actual JSON returned by AI
+            JsonNode analysisJson = mapper.readTree(content);
             JsonNode analysisNode = analysisJson.path("analysis");
+
             StringBuilder fullAnalysis = new StringBuilder();
-            addAnalysisSection(fullAnalysis, analysisNode, "overall", "Overall:");
-            addAnalysisSection(fullAnalysis, analysisNode, "pace", "Pace:");
-            addAnalysisSection(fullAnalysis, analysisNode, "heartRate", "Heart Rate:");
-            addAnalysisSection(fullAnalysis, analysisNode, "caloriesBurned", "Calories Burned:");
 
-            List<String> improvements = extractImprovents(analysisJson.path("improvements"));
+            addAnalysisSection(fullAnalysis, analysisNode, "overall", "Overall: ");
+            addAnalysisSection(fullAnalysis, analysisNode, "pace", "Pace: ");
+            addAnalysisSection(fullAnalysis, analysisNode, "heartRate", "Heart Rate: ");
+            addAnalysisSection(fullAnalysis, analysisNode, "caloriesBurned", "Calories Burned: ");
 
+            log.info("Full Analysis: {}", fullAnalysis.toString());
+
+            List<String> improvements = extractImprovements(analysisJson.path("improvements"));
             List<String> suggestions = extractSuggestions(analysisJson.path("suggestions"));
-            // Now you can extract:
-            // fitnessJson.path("analysis").path("overall").asText();
+            List<String> safety = extractSafetyGuidelines(analysisJson.path("safety"));
+
+            return Recommendation.builder()
+                    .activityId(activity.getId())
+                    .userId(activity.getUserId())
+                    .activityType(activity.getType())
+                    .recommendation(fullAnalysis.toString().trim())
+                    .improvements(improvements)
+                    .suggestions(suggestions)
+                    .safety(safety)
+                    .createdAt(LocalDateTime.now())
+                    .build();
 
         } catch (Exception e) {
-            log.error("Error parsing GroQ response", e);
+            log.error("Error parsing Groq response", e);
+            return createDefaultRecommendation(activity);
         }
+    }
+
+    private Recommendation createDefaultRecommendation(Activity activity) {
+        return Recommendation.builder()
+                .activityId(activity.getId())
+                .userId(activity.getUserId())
+                .activityType(activity.getType())
+                .recommendation("Unable to generate detailed analysis")
+                .improvements(Collections.singletonList("Continue with your current routine"))
+                .suggestions(Collections.singletonList("Consider consulting a fitness professional"))
+                .safety(Arrays.asList(
+                        "Always warm up before exercise",
+                        "Stay hydrated",
+                        "Listen to your body"
+                ))
+                .createdAt(LocalDateTime.now())
+                .build();
+    }
+
+    private List<String> extractSafetyGuidelines(JsonNode safetyNode) {
+        List<String> safety = new ArrayList<>();
+        if (safetyNode.isArray()) {
+            safetyNode.forEach(item -> safety.add(item.asText()));
+        }
+        return safety.isEmpty()
+                ? Collections.singletonList("Follow general safety guidelines")
+                : safety;
     }
 
     private List<String> extractSuggestions(JsonNode suggestionsNode) {
         List<String> suggestions = new ArrayList<>();
-        if(suggestionsNode.isArray()){
+        if (suggestionsNode.isArray()) {
             suggestionsNode.forEach(suggestion -> {
                 String workout = suggestion.path("workout").asText();
                 String description = suggestion.path("description").asText();
-                suggestions.add(String.format("$s: %s", workout, description));
+                suggestions.add(String.format("%s: %s", workout, description));
             });
-            return suggestions.isEmpty()?
-                    Collections.singletonList("No specific suggestions provided"):
-                    suggestions;
-
         }
+        return suggestions.isEmpty()
+                ? Collections.singletonList("No specific suggestions provided")
+                : suggestions;
     }
 
-    private List<String> extractImprovents(JsonNode improvementsNode){
+    private List<String> extractImprovements(JsonNode improvementsNode) {
         List<String> improvements = new ArrayList<>();
-        if(improvementsNode.isArray()){
+        if (improvementsNode.isArray()) {
             improvementsNode.forEach(improvement -> {
                 String area = improvement.path("area").asText();
                 String detail = improvement.path("recommendation").asText();
-                improvements.add(String.format("$s: %s", area, detail));
+                improvements.add(String.format("%s: %s", area, detail));
             });
-            return improvements.isEmpty()?
-                    Collections.singletonList("No specific improvements provided"):
-                    improvements;
         }
+        return improvements.isEmpty()
+                ? Collections.singletonList("No specific improvements provided")
+                : improvements;
     }
 
-    private void addAnalysisSection(StringBuilder fullAnalysis, JsonNode analysisNode, String key, String prefix) {
-        if(!analysisNode.path(key).isMissingNode()){
+    private void addAnalysisSection(StringBuilder fullAnalysis,
+                                    JsonNode analysisNode,
+                                    String key,
+                                    String prefix) {
+
+        if (!analysisNode.path(key).isMissingNode()) {
             fullAnalysis.append(prefix)
                     .append(analysisNode.path(key).asText())
                     .append("\n\n");
@@ -107,7 +148,7 @@ public class ActivityAIService {
         return String.format("""
             You are a professional fitness AI coach.
 
-            Analyze this fitness activity and provide detailed recommendations in the following EXACT JSON format:
+            Analyze this fitness activity and return the result in the EXACT JSON format below:
 
             {
               "analysis": {
@@ -134,19 +175,17 @@ public class ActivityAIService {
               ]
             }
 
-            Analyze this activity:
-
             Activity Type: %s
             Duration: %d minutes
             Calories Burned: %d
             Additional Metrics: %s
 
             IMPORTANT:
-            - Return ONLY valid JSON.
+            - Return ONLY raw valid JSON.
             - Do NOT include markdown.
-            - Do NOT include explanations before or after JSON.
             - Do NOT include backticks.
-            - The response must be strictly valid parsable JSON.
+            - Do NOT include explanations.
+            - Response must be strictly valid JSON.
 
             """,
                 activity.getType(),

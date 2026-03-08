@@ -5,10 +5,10 @@ spring:
   application:
     name: ai-service
 
-    data:
-      mongodb:
-        uri: mongodb://localhost:27017/fitnessrecommendation
-        database: fitnessrecommendation
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/fitnessrecommendation
+
     rabbitmq:
       name: localhost
       port: 5672
