@@ -1,6 +1,7 @@
 server:
   port: 8081
 
+spring:
   datasource:
     url: jdbc:postgresql://localhost:5433/fitness_user_db
     username: postgres
