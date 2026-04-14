@@ -3,10 +3,10 @@ server:
 
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5433/fitness_user_db
-    username: postgres
-    password: admin@1234
-    driver-class-name: org.postgresql.Driver
+   url: jdbc:postgresql://localhost:5433/fitness_user_db
+   username: postgres
+   password: admin@1234
+   driver-class-name: org.postgresql.Driver
 
   jpa:
     hibernate:
