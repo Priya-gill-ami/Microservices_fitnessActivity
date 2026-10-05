@@ -51,8 +51,8 @@ public class SecurityConfig {
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
 
                 .authorizeExchange(exchange -> exchange
-                        .pathMatchers("/actuator/**").permitAll()
-//                        .anyExchange().authenticated()
+//                        .pathMatchers("/actuator/**").permitAll()
+                        .anyExchange().authenticated()
                 );
 
 //                // JWT authentication
